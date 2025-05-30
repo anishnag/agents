@@ -1221,6 +1221,14 @@ class AgentActivity(RecognitionHooks):
             await speech_handle.wait_if_not_interrupted(
                 [asyncio.ensure_future(audio_output.wait_for_playout())]
             )
+            if not speech_handle.interrupted:
+                # if another reply is about to be generated automatically, we don't want to go to
+                # listening
+                if len(tool_output.output) > 0:
+                    logger.warning("Thinking state instead of listening because expecting tool output")
+                    self._session._update_agent_state("thinking")
+                else:
+                    self._session._update_agent_state("listening")
 
         # add the tools messages that triggers this reply to the chat context
         if _tools_messages:
@@ -1381,6 +1389,12 @@ class AgentActivity(RecognitionHooks):
                 for msg in tool_messages:
                     msg.created_at = reply_started_at
                 self._agent._chat_ctx.insert(tool_messages)
+            
+            if not generate_tool_reply:
+                # if no tool reply is generated, we want to go to listening
+                logger.warning("Listening state because no tool reply generated")
+                self._session._update_agent_state("listening")
+
 
     @utils.log_exceptions(logger=logger)
     async def _realtime_reply_task(
@@ -1538,7 +1552,13 @@ class AgentActivity(RecognitionHooks):
             await speech_handle.wait_if_not_interrupted(
                 [asyncio.ensure_future(audio_output.wait_for_playout())]
             )
-            self._session._update_agent_state("listening")
+            # if another reply is about to be generated automatically, we don't want to go to
+            # listening
+            if len(tool_output.output) > 0:
+                logger.warning("Thinking state instead of listening because expecting tool output")
+                self._session._update_agent_state("thinking")
+            else:
+                self._session._update_agent_state("listening")
 
         if speech_handle.interrupted:
             await utils.aio.cancel_and_wait(*tasks)
@@ -1559,6 +1579,15 @@ class AgentActivity(RecognitionHooks):
                             playback_position=playback_ev.playback_position,
                             speech_id=speech_handle.id,
                         )
+
+                        # if another reply is about to be generated automatically, we don't want to go to
+                        # listening
+                        if len(tool_output.output) > 0:
+                            logger.warning("Thinking state instead of listening because expecting tool output")
+                            self._session._update_agent_state("thinking")
+                        else:
+                            self._session._update_agent_state("listening")
+
                         if playback_ev.synchronized_transcript is not None:
                             forwarded_text = playback_ev.synchronized_transcript
                     else:
