@@ -1286,11 +1286,14 @@ class AgentActivity(RecognitionHooks):
             self._session._conversation_item_added(msg)
             speech_handle._set_chat_message(msg)
 
+        # if another reply is about to be generated automatically, we don't want to go to
+        # listening
         if len(tool_output.output) > 0:
+            logger.warning("Thinking state instead of listening because expecting tool output")
             self._session._update_agent_state("thinking")
-        elif self._session.agent_state == "speaking":
+        else:
+            logger.warning("Listening state because no tool reply generated")
             self._session._update_agent_state("listening")
-
         log_event("playout completed", speech_id=speech_handle.id)
 
         speech_handle._mark_playout_done()  # mark the playout done before waiting for the tool execution  # noqa: E501
